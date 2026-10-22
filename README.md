@@ -1,5 +1,7 @@
 # Baking Time Plan
 
+[![Tests](https://github.com/atihauber/baking-time-plan/actions/workflows/test.yml/badge.svg)](https://github.com/atihauber/baking-time-plan/actions/workflows/test.yml)
+
 A Google Sheets script that plans your bakes. Enter a start time for a recipe, and it fills in when every following step is due. A `Summary` sheet merges all recipes into one color-coded timeline.
 
 <table>
