@@ -78,11 +78,15 @@ Run `setUpTrigger` only when you need to create or recreate the edit trigger. Th
 
 ## How calculations work
 
-- The script finds the first non-empty override time in column C.
-- That row becomes the starting point for calculation.
+- The first row with a time in column C becomes the starting point for calculation.
 - Each following row uses its override time if present; otherwise, its calculated time is the previous calculated time plus the row's delay in minutes.
 - Rows before the first override do not receive calculated times.
+- Rows with an empty phase (column A) are skipped and get no time; the chain continues past them.
+- A delay can be a number of minutes, a number stored as text, or a duration such as `3:30` (useful for long phases). An empty delay counts as 0. Format duration cells as **Format → Number → Duration**; in a cell formatted as a plain number, `0:45` shows up as a fraction of a day and is read as a fraction of a minute.
+- If column C holds something that is not a time (for example `9.30` typed as text), the row shows `⚠ invalid time`. If the delay cannot be read as minutes, the row shows `⚠ invalid delay`. Marked rows are skipped and the chain continues from the last valid time.
 - The summary includes rows with calculated times and sorts them by time.
+
+Every sheet except `Summary` is treated as a recipe. Keep notes and other data in a separate spreadsheet or to the right of column D, because column D of every sheet is overwritten.
 
 ## Configuration and limitations
 
@@ -120,7 +124,7 @@ npm test        # unit tests for the calculation and summary logic
 
 Find the script ID under **Project Settings** in the Apps Script editor. Keep `.clasp.json` and `.clasprc.json` out of version control; both are in `.gitignore`.
 
-The tests in `test/` load `src/recipe_timer.js` in a sandbox and cover the pure logic (`findFirstOverrideTime`, `recalculateTimes`, summary de-duplication). Code that calls `SpreadsheetApp` must still be tested in a copy of a spreadsheet.
+The tests in `test/` load `src/recipe_timer.js` in a sandbox and cover the calculation logic (`calculateTimes`, `parseDelayMinutes`, summary de-duplication) and, through small fakes of the Sheets API, the edit handling. Code that calls `SpreadsheetApp` must still be tested in a copy of a spreadsheet.
 
 ## Contributing
 

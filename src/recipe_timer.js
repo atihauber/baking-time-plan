@@ -6,6 +6,9 @@ const OVERRIDE_TIME_COLUMN = 2;
 const CALCULATED_TIME_COLUMN = 3;
 const FIRST_DATA_ROW = 2;
 const SUMMARY_HEADER = [["Recept", "Fázis", "Számolt Időpont", "Recept"]];
+// Written to the calculated column instead of a time when a row cannot be used
+const INVALID_TIME_MARK = "⚠ invalid time";
+const INVALID_DELAY_MARK = "⚠ invalid delay";
 const RECIPE_COLORS = {
   "Recipe1": "#FFC8C8", // Light Red
   "Recipe2": "#C8FFC8", // Light Green
@@ -62,32 +65,58 @@ function insertDataToSummary(summaryTasks, recipeName, task) {
   }
 }
 
-function findFirstOverrideTime(values) {
-  for (let i = 0; i < values.length; i++) {
-    if (values[i][OVERRIDE_TIME_COLUMN] !== "") {
-      return { initialTime: new Date(values[i][OVERRIDE_TIME_COLUMN]), index: i };
-    }
+// Sheets hands durations such as 0:45 to scripts as dates on 1899-12-30
+const SHEETS_EPOCH = new Date(1899, 11, 30);
+
+// Returns the delay in minutes, or null if the cell is not a usable delay
+function parseDelayMinutes(value) {
+  if (value === "") {
+    return 0;
   }
-  return { initialTime: null, index: -1 };
+  if (value instanceof Date) {
+    return isNaN(value.getTime()) ? null : (value.getTime() - SHEETS_EPOCH.getTime()) / 60000;
+  }
+  const minutes = typeof value === "number" ? value : Number(String(value).trim());
+  return Number.isFinite(minutes) ? minutes : null;
 }
 
-function recalculateTimes(values, initialIndex, initialTime) {
-  let calculatedTime = initialTime;
-  values[initialIndex][CALCULATED_TIME_COLUMN] = calculatedTime;
+function isValidTime(value) {
+  return value instanceof Date && !isNaN(value.getTime());
+}
 
-  for (let i = initialIndex + 1; i < values.length; i++) {
-    if (values[i][OVERRIDE_TIME_COLUMN] !== "") {
-      calculatedTime = new Date(values[i][OVERRIDE_TIME_COLUMN]);
-    } else if (values[i - 1][CALCULATED_TIME_COLUMN] !== "") {
-      calculatedTime = new Date(values[i - 1][CALCULATED_TIME_COLUMN]);
-      calculatedTime.setMinutes(calculatedTime.getMinutes() + values[i][TIME_DELTA_COLUMN]);
+// Fills the calculated column. Rows without a phase are skipped, an override
+// restarts the chain, and every other row adds its delay to the last good time.
+// Rows that cannot be used are marked and the chain continues past them.
+function calculateTimes(values) {
+  let previousTime = null;
+
+  values.forEach(row => {
+    row[CALCULATED_TIME_COLUMN] = "";
+    if (row[TASK_COLUMN] === "") {
+      return;
+    }
+
+    const override = row[OVERRIDE_TIME_COLUMN];
+    if (override !== "") {
+      if (!isValidTime(override)) {
+        row[CALCULATED_TIME_COLUMN] = INVALID_TIME_MARK;
+        return;
+      }
+      previousTime = new Date(override);
+    } else if (previousTime) {
+      const delay = parseDelayMinutes(row[TIME_DELTA_COLUMN]);
+      if (delay === null) {
+        row[CALCULATED_TIME_COLUMN] = INVALID_DELAY_MARK;
+        return;
+      }
+      previousTime = new Date(previousTime.getTime() + delay * 60000);
     } else {
-      calculatedTime = null;
+      return;
     }
-    if (calculatedTime) {
-      values[i][CALCULATED_TIME_COLUMN] = calculatedTime;
-    }
-  }
+
+    row[CALCULATED_TIME_COLUMN] = previousTime;
+  });
+
   return values;
 }
 
@@ -137,7 +166,7 @@ function updateSummary() {
       let hasCalculatedTimes = false;
 
       tasks.forEach(task => {
-        if (task[CALCULATED_TIME_COLUMN] !== "") {
+        if (isValidTime(task[CALCULATED_TIME_COLUMN])) {
           debugLog(`Adding task to summary: ${task}`);
           insertDataToSummary(summaryTasks, recipeName, task);
           hasCalculatedTimes = true;
@@ -177,14 +206,7 @@ function updateCalculatedTimes(sheets = SpreadsheetApp.getActiveSpreadsheet().ge
       const values = range.getValues();
 
       debugLog(`Processing sheet: ${sheet.getName()}, number of rows: ${values.length}`);
-      values.forEach(row => row[CALCULATED_TIME_COLUMN] = "");
-
-      const { initialTime, index } = findFirstOverrideTime(values);
-
-      if (initialTime !== null) {
-        debugLog(`Recalculating times from index: ${index}, initial time: ${initialTime}`);
-        recalculateTimes(values, index, initialTime);
-      }
+      calculateTimes(values);
 
       // Write only the calculated column so formulas in A-C are left alone
       sheet.getRange(FIRST_DATA_ROW, CALCULATED_TIME_COLUMN + 1, values.length, 1)

@@ -1,41 +1,67 @@
-const {
-  findFirstOverrideTime,
-  recalculateTimes,
-  findTaskIndex,
-  insertDataToSummary,
-} = require('./load');
+const { calculateTimes, parseDelayMinutes, findTaskIndex, insertDataToSummary } = require('./load');
 
 const t = (h, m) => new Date(1899, 11, 30, h, m);
 const row = (phase, delay, override = '') => [phase, delay, override, ''];
+const times = rows => calculateTimes(rows).map(r => r[3]);
 
-describe('findFirstOverrideTime', () => {
-  test('returns the first non-empty override', () => {
-    const values = [row('a', 0), row('b', 60, t(15, 15)), row('c', 30, t(18, 0))];
-    expect(findFirstOverrideTime(values)).toEqual({ initialTime: t(15, 15), index: 1 });
-  });
-
-  test('returns no start when there is no override', () => {
-    expect(findFirstOverrideTime([row('a', 0), row('b', 5)]).index).toBe(-1);
-  });
-});
-
-describe('recalculateTimes', () => {
+describe('calculateTimes', () => {
   test('matches the README example (15:15, 15:45, 16:30, 17:15)', () => {
-    const values = [
+    expect(times([
       row('Autolízis', 0),
       row('Dagasztás', 60, t(15, 15)),
       row('Dagasztás sóval', 30),
       row('Laminálás', 45),
       row('Hajtogatás 1.', 45),
-    ];
-    recalculateTimes(values, 1, t(15, 15));
-    expect(values.map(r => r[3])).toEqual(['', t(15, 15), t(15, 45), t(16, 30), t(17, 15)]);
+    ])).toEqual(['', t(15, 15), t(15, 45), t(16, 30), t(17, 15)]);
   });
 
   test('a later override restarts the chain', () => {
-    const values = [row('a', 0, t(10, 0)), row('b', 30), row('c', 30, t(12, 0)), row('d', 15)];
-    recalculateTimes(values, 0, t(10, 0));
-    expect(values.map(r => r[3])).toEqual([t(10, 0), t(10, 30), t(12, 0), t(12, 15)]);
+    expect(times([row('a', 0, t(10, 0)), row('b', 30), row('c', 30, t(12, 0)), row('d', 15)]))
+      .toEqual([t(10, 0), t(10, 30), t(12, 0), t(12, 15)]);
+  });
+
+  test('stale calculated times are cleared when there is no override', () => {
+    expect(times([['a', 0, '', t(8, 0)], ['b', 5, '', t(8, 5)]])).toEqual(['', '']);
+  });
+
+  test('rows without a phase get no time and the chain continues past them', () => {
+    expect(times([row('Mix', 0, t(8, 0)), row('', ''), row('Bake', 30), ['', '', '', ''], row('', '')]))
+      .toEqual([t(8, 0), '', t(8, 30), '', '']);
+  });
+
+  test('an invalid override is marked and skipped', () => {
+    expect(times([row('Mix', 0, t(8, 0)), row('Fold', 30, '9.30'), row('Bake', 30)]))
+      .toEqual([t(8, 0), '⚠ invalid time', t(8, 30)]);
+  });
+
+  test('an invalid override before any start is marked', () => {
+    expect(times([row('Mix', 0, 930), row('Bake', 30)])).toEqual(['⚠ invalid time', '']);
+  });
+
+  test('an invalid delay is marked and skipped', () => {
+    expect(times([row('Mix', 0, t(8, 0)), row('Fold', '1 pack'), row('Bake', 30)]))
+      .toEqual([t(8, 0), '⚠ invalid delay', t(8, 30)]);
+  });
+
+  test('a delay stored as text is added, not concatenated', () => {
+    expect(times([row('Mix', 0, t(8, 15)), row('Fold', 30), row('Shape', '45')]))
+      .toEqual([t(8, 15), t(8, 45), t(9, 30)]);
+  });
+});
+
+describe('parseDelayMinutes', () => {
+  test.each([
+    [45, 45],
+    ['45', 45],
+    [' 45 ', 45],
+    ['', 0],
+    [1.5, 1.5],
+    [t(0, 45), 45],
+    [new Date(1899, 11, 31, 1, 0), 25 * 60],
+    ['1 pack', null],
+    [new Date('x'), null],
+  ])('%p -> %p', (value, expected) => {
+    expect(parseDelayMinutes(value)).toBe(expected);
   });
 });
 
@@ -85,6 +111,13 @@ describe('sheets without data rows', () => {
   test('updateSummary tolerates empty and header-only sheets', () => {
     const sheets = [fakeSheet('Empty', []), fakeSheet('Headers', [header])];
     expect(() => setup(...sheets).updateSummary()).not.toThrow();
+  });
+
+  test('updateSummary leaves out rows marked as invalid', () => {
+    const summary = fakeSummary();
+    const recipe = fakeSheet('Kenyér', [header, ['Mix', 0, t(8, 0), '⚠ invalid time'], ['Bake', 30, '', '']]);
+    load({ SpreadsheetApp: fakeSpreadsheetApp([recipe, summary]) }).updateSummary();
+    expect(summary.calls.setBackgrounds).toBe(0);
   });
 
   test('updateSummary colors the rows with a single batched call', () => {

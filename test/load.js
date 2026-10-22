@@ -7,8 +7,8 @@ const vm = require('vm');
 // exercise the code that touches sheets.
 const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'recipe_timer.js'), 'utf8');
 const exported = [
-  'findFirstOverrideTime',
-  'recalculateTimes',
+  'calculateTimes',
+  'parseDelayMinutes',
   'findTaskIndex',
   'insertDataToSummary',
   'handleEdit',
