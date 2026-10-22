@@ -170,3 +170,66 @@ describe('edit handling', () => {
     expect([a.writes.length, b.writes.length]).toEqual([1, 1]);
   });
 });
+
+describe('incremental summary', () => {
+  const { load } = require('./load');
+  const { fakeSheet, fakeSummary, fakeSpreadsheetApp, fakeEdit } = require('./fakes');
+  const header = ['Phase', 'Delay (min)', 'Time override', 'Calculated time'];
+  const RED = '#FFC8C8';
+  const BLUE = '#C8C8FF';
+
+  // A Summary that already lists Kenyér (red) and Pizza (green)
+  const existingSummary = () => fakeSummary(
+    [['Kenyér', 'Mix', t(8, 0), 'Kenyér'], ['Pizza', 'Knead', t(9, 0), 'Pizza'], ['Kenyér', 'Bake', t(10, 0), 'Kenyér']],
+    ['#ffc8c8', '#c8ffc8', '#ffc8c8'],
+  );
+
+  test('an edit reads only the edited sheet and replaces its rows', () => {
+    const summary = existingSummary();
+    const kenyer = fakeSheet('Kenyér', [header, ['Mix', 0, t(7, 0), ''], ['Bake', 30, '', '']]);
+    const pizza = fakeSheet('Pizza', [header, ['Knead', 0, t(9, 0), t(9, 0)]]);
+    load({ SpreadsheetApp: fakeSpreadsheetApp([kenyer, pizza, summary]) }).handleEdit(fakeEdit(kenyer, 3));
+
+    expect(pizza.reads).toBe(0);
+    expect(summary.rows.map(r => `${r[0]} ${r[1]}`)).toEqual(['Kenyér Mix', 'Kenyér Bake', 'Pizza Knead']);
+    expect(summary.rows.map(r => r[2])).toEqual([t(7, 0), t(7, 30), t(9, 0)]);
+  });
+
+  test('recipes keep their colors', () => {
+    const summary = existingSummary();
+    const pizza = fakeSheet('Pizza', [header, ['Knead', 0, t(6, 0), '']]);
+    load({ SpreadsheetApp: fakeSpreadsheetApp([pizza, summary]) }).handleEdit(fakeEdit(pizza, 3));
+    expect(summary.rows.map(r => r[0])).toEqual(['Pizza', 'Kenyér', 'Kenyér']);
+    expect(summary.colors).toEqual(['#c8ffc8', '#ffc8c8', '#ffc8c8']);
+  });
+
+  test('a recipe new to the Summary gets the first unused color', () => {
+    const summary = existingSummary();
+    const kifli = fakeSheet('Kifli', [header, ['Roll', 0, t(11, 0), '']]);
+    load({ SpreadsheetApp: fakeSpreadsheetApp([kifli, summary]) }).handleEdit(fakeEdit(kifli, 3));
+    expect(summary.rows[3][0]).toBe('Kifli');
+    expect(summary.colors[3]).toBe(BLUE);
+  });
+
+  test('clearing a recipe\'s override removes its rows', () => {
+    const summary = existingSummary();
+    const kenyer = fakeSheet('Kenyér', [header, ['Mix', 0, '', t(8, 0)], ['Bake', 30, '', t(10, 0)]]);
+    load({ SpreadsheetApp: fakeSpreadsheetApp([kenyer, summary]) }).handleEdit(fakeEdit(kenyer, 3));
+    expect(summary.rows.map(r => r[0])).toEqual(['Pizza']);
+  });
+
+  test('works with an empty Summary', () => {
+    const summary = fakeSummary();
+    const kenyer = fakeSheet('Kenyér', [header, ['Mix', 0, t(8, 0), '']]);
+    load({ SpreadsheetApp: fakeSpreadsheetApp([kenyer, summary]) }).handleEdit(fakeEdit(kenyer, 3));
+    expect(summary.rows).toEqual([['Kenyér', 'Mix', t(8, 0), 'Kenyér']]);
+    expect(summary.colors).toEqual([RED]);
+  });
+
+  test('without an event the Summary is rebuilt from every sheet', () => {
+    const summary = existingSummary();
+    const kenyer = fakeSheet('Kenyér', [header, ['Mix', 0, t(7, 0), '']]);
+    load({ SpreadsheetApp: fakeSpreadsheetApp([kenyer, summary]) }).handleEdit();
+    expect(summary.rows.map(r => `${r[0]} ${r[1]}`)).toEqual(['Kenyér Mix']);
+  });
+});

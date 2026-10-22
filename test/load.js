@@ -14,6 +14,7 @@ const exported = [
   'handleEdit',
   'updateCalculatedTimes',
   'updateSummary',
+  'updateSummaryForRecipe',
 ];
 
 function load(globals = {}) {

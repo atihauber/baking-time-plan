@@ -5,6 +5,7 @@ function fakeSheet(name, rows = []) {
   const sheet = {
     rows: rows.map(r => r.slice()),
     writes: [],
+    reads: 0,
     getName: () => name,
     getLastRow: () => sheet.rows.length,
     getRange(...args) {
@@ -22,7 +23,10 @@ function fakeSheet(name, rows = []) {
         [first, col, count, width] = args;
       }
       return {
-        getValues: () => sheet.rows.slice(first - 1, first - 1 + count).map(r => r.slice(col - 1, col - 1 + width)),
+        getValues() {
+          sheet.reads++;
+          return sheet.rows.slice(first - 1, first - 1 + count).map(r => r.slice(col - 1, col - 1 + width));
+        },
         setValues(values) {
           sheet.writes.push({ row: first, col, rows: values.length, cols: width });
           values.forEach((v, i) => {
@@ -37,14 +41,34 @@ function fakeSheet(name, rows = []) {
   return sheet;
 }
 
-function fakeSummary() {
+// A Summary sheet that keeps its data rows and their background colors.
+function fakeSummary(rows = [], colors = []) {
   const calls = { setBackground: 0, setBackgrounds: 0 };
-  const cell = {
-    setValues() {}, setFontWeight() {}, setBorder() {}, setHorizontalAlignment() {},
-    setBackground() { calls.setBackground++; },
-    setBackgrounds() { calls.setBackgrounds++; },
+  const summary = {
+    calls,
+    rows: rows.map(r => r.slice()),
+    colors: colors.slice(),
+    getName: () => 'Summary',
+    getLastRow: () => (summary.rows.length ? summary.rows.length + 1 : 0),
+    clear() { summary.rows = []; summary.colors = []; },
+    getRange(row, col, count) {
+      const data = typeof row === 'number' && row >= 2;
+      return {
+        getValues: () => summary.rows.slice(row - 2, row - 2 + count).map(r => r.slice()),
+        getBackgrounds: () => summary.colors.slice(row - 2, row - 2 + count).map(c => Array(4).fill(c)),
+        setValues(values) {
+          if (data && col === 1) summary.rows.splice(row - 2, values.length, ...values.map(v => v.slice()));
+        },
+        setBackgrounds(values) {
+          calls.setBackgrounds++;
+          summary.colors.splice(row - 2, values.length, ...values.map(v => v[0]));
+        },
+        setBackground() { calls.setBackground++; },
+        setFontWeight() {}, setBorder() {}, setHorizontalAlignment() {},
+      };
+    },
   };
-  return { calls, getName: () => 'Summary', clear() {}, getRange: () => cell };
+  return summary;
 }
 
 function fakeSpreadsheetApp(sheets) {

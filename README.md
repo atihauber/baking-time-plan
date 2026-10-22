@@ -92,17 +92,18 @@ Every sheet except `Summary` is treated as a recipe. Keep notes and other data i
 
 - The summary sheet name is `Summary`.
 - Recipe data is expected in columns A–D, starting at row 2.
-- The current design has a five-color palette (`RECIPE_COLORS` in the script). Colors are assigned by position, in sheet order, to recipes that have calculated times; the keys (`Recipe1`–`Recipe5`) are labels only and do not need to match sheet names. If more than five recipes have calculated times, colors repeat.
-- An edit recalculates only the edited recipe sheet and rebuilds the `Summary`. Edits on the `Summary` sheet or to the right of column D are ignored.
+- The current design has a five-color palette (`RECIPE_COLORS` in the script). A recipe keeps its color in the summary; a recipe that is new to the summary gets the first unused color. A full rebuild assigns colors by position, in sheet order, to recipes that have calculated times. The keys (`Recipe1`–`Recipe5`) are labels only and do not need to match sheet names. If more than five recipes have calculated times, colors repeat.
+- A cell edit recalculates only the edited recipe sheet and replaces that recipe's rows in the `Summary`; other recipe sheets are not read. Edits on the `Summary` sheet or to the right of column D are ignored.
+- Adding, deleting, or renaming a sheet and inserting or deleting rows do not trigger an update. Afterwards, run `handleEdit` from the Apps Script editor to rebuild every recipe and the whole `Summary`.
 - `DEBUG` is `0` by default. Set it to `1` to write detailed progress to the Apps Script log.
-- The whole `Summary` sheet is cleared and rebuilt on each run, so anything typed there is lost.
+- The `Summary` sheet is rewritten on every update, so do not keep your own data there.
 - Times are handled as time-of-day values; a schedule that runs past midnight sorts after earlier times in the summary.
 - Recipe sheet names are used as recipe names in the summary.
 - The script is a Google Apps Script project intended to be copied into a spreadsheet; this repository is not a standalone web application.
 
 ## Troubleshooting
 
-- **Nothing updates:** check that the installable edit trigger exists in Apps Script under **Triggers**, and review **Executions** for errors.
+- **Nothing updates:** check that the `handleEdit` trigger exists in Apps Script under **Triggers**, and review **Executions** for errors.
 - **Authorization is requested:** run `setUpTrigger` from the Apps Script editor and complete Google's authorization flow.
 - **No calculated times appear:** ensure at least one row in column C contains a valid time override.
 - **The summary cannot be found:** create a sheet named exactly `Summary`.

@@ -122,29 +122,42 @@ function calculateTimes(values) {
 
 // Named handleEdit, not onEdit: Sheets runs a function called onEdit as a simple
 // trigger on its own, which would fire alongside the installable trigger.
+// An edit touches only the edited sheet and the Summary; without an event
+// (run from the editor) every recipe and the whole Summary are rebuilt.
 function handleEdit(e) {
   try {
     const editedSheet = e && e.range ? e.range.getSheet() : null;
 
-    if (editedSheet) {
-      // The Summary and anything right of the calculated column cannot change a schedule.
-      if (editedSheet.getName() === "Summary" || e.range.getColumn() > CALCULATED_TIME_COLUMN + 1) {
-        return;
-      }
-      debugLog(`Edit detected in sheet: ${editedSheet.getName()}, range: ${e.range.getA1Notation()}`);
+    if (!editedSheet) {
+      rebuildAll();
+      return;
     }
 
-    updateCalculatedTimes(editedSheet ? [editedSheet] : undefined);
-    updateSummary();
+    // The Summary and anything right of the calculated column cannot change a schedule.
+    if (editedSheet.getName() === "Summary" || e.range.getColumn() > CALCULATED_TIME_COLUMN + 1) {
+      return;
+    }
+    debugLog(`Edit detected in sheet: ${editedSheet.getName()}, range: ${e.range.getA1Notation()}`);
+
+    refreshRecipe(editedSheet);
   } catch (error) {
     Logger.log("Error: " + error.message);
   }
 }
 
+function rebuildAll() {
+  updateCalculatedTimes();
+  updateSummary();
+}
+
+function refreshRecipe(sheet) {
+  const values = recalculateSheet(sheet);
+  updateSummaryForRecipe(sheet.getName(), values);
+}
+
 function updateSummary() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const summarySheet = spreadsheet.getSheetByName("Summary");
-  clearSummarySheet(summarySheet);
 
   const sheets = spreadsheet.getSheets();
   const colorList = getRecipeColors();
@@ -179,6 +192,50 @@ function updateSummary() {
     }
   });
 
+  writeSummary(summarySheet, summaryTasks, recipeColors);
+}
+
+// Replaces one recipe's rows in the Summary without reading the other recipe
+// sheets. Other recipes keep their rows and colors as they are in the Summary.
+function updateSummaryForRecipe(recipeName, values) {
+  const summarySheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Summary");
+  const lastRow = summarySheet.getLastRow();
+  let rows = [];
+  let backgrounds = [];
+
+  if (lastRow >= FIRST_DATA_ROW) {
+    const range = summarySheet.getRange(FIRST_DATA_ROW, 1, lastRow - 1, 4);
+    rows = range.getValues();
+    backgrounds = range.getBackgrounds();
+  }
+
+  const recipeColors = {};
+  rows.forEach((row, i) => {
+    recipeColors[row[0]] = backgrounds[i][0];
+  });
+  if (!recipeColors[recipeName]) {
+    recipeColors[recipeName] = pickUnusedColor(recipeColors);
+  }
+
+  const summaryTasks = rows.filter(row => row[0] !== recipeName);
+  values.forEach(task => {
+    if (isValidTime(task[CALCULATED_TIME_COLUMN])) {
+      insertDataToSummary(summaryTasks, recipeName, task);
+    }
+  });
+
+  writeSummary(summarySheet, summaryTasks, recipeColors);
+}
+
+function pickUnusedColor(recipeColors) {
+  const colorList = getRecipeColors();
+  const used = Object.values(recipeColors).map(color => String(color).toLowerCase());
+  const unused = colorList.find(color => !used.includes(color.toLowerCase()));
+  return unused || colorList[Object.keys(recipeColors).length % colorList.length];
+}
+
+function writeSummary(summarySheet, summaryTasks, recipeColors) {
+  clearSummarySheet(summarySheet);
   summaryTasks.sort((a, b) => new Date(a[2]) - new Date(b[2]));
 
   // Insert the sorted tasks into the summary sheet and apply coloring
@@ -192,25 +249,31 @@ function updateSummary() {
   }
 }
 
-function updateCalculatedTimes(sheets = SpreadsheetApp.getActiveSpreadsheet().getSheets()) {
-  sheets.forEach(sheet => {
+function updateCalculatedTimes() {
+  SpreadsheetApp.getActiveSpreadsheet().getSheets().forEach(sheet => {
     if (sheet.getName() !== "Summary") {
-      const lastRow = sheet.getLastRow();
-
-      if (lastRow < FIRST_DATA_ROW) {
-        debugLog(`Skipping empty sheet: ${sheet.getName()}`);
-        return;
-      }
-
-      const range = sheet.getRange("A2:D" + lastRow);
-      const values = range.getValues();
-
-      debugLog(`Processing sheet: ${sheet.getName()}, number of rows: ${values.length}`);
-      calculateTimes(values);
-
-      // Write only the calculated column so formulas in A-C are left alone
-      sheet.getRange(FIRST_DATA_ROW, CALCULATED_TIME_COLUMN + 1, values.length, 1)
-        .setValues(values.map(row => [row[CALCULATED_TIME_COLUMN]]));
+      recalculateSheet(sheet);
     }
   });
+}
+
+// Recalculates one recipe sheet and returns its data rows (empty if it has none)
+function recalculateSheet(sheet) {
+  const lastRow = sheet.getLastRow();
+
+  if (lastRow < FIRST_DATA_ROW) {
+    debugLog(`Skipping empty sheet: ${sheet.getName()}`);
+    return [];
+  }
+
+  const range = sheet.getRange("A2:D" + lastRow);
+  const values = range.getValues();
+
+  debugLog(`Processing sheet: ${sheet.getName()}, number of rows: ${values.length}`);
+  calculateTimes(values);
+
+  // Write only the calculated column so formulas in A-C are left alone
+  sheet.getRange(FIRST_DATA_ROW, CALCULATED_TIME_COLUMN + 1, values.length, 1)
+    .setValues(values.map(row => [row[CALCULATED_TIME_COLUMN]]));
+  return values;
 }
