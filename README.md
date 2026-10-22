@@ -74,7 +74,7 @@ See [`examples/spreadsheet-layout.md`](examples/spreadsheet-layout.md) for a com
 8. Review and grant the requested permissions.
 9. Enter a time in column C of a recipe sheet. The calculated times and summary should update automatically.
 
-Run `setUpTrigger` only when you need to create or recreate the edit trigger. The function removes existing project triggers before creating the `handleEdit` trigger. If you installed an earlier version that used an `onEdit` trigger, run `setUpTrigger` again after updating the script.
+Run `setUpTrigger` only when you need to create or recreate the triggers. The function removes existing project triggers before creating two new ones: `handleEdit` (on edit) and `handleChange` (on change). If you installed an earlier version, run `setUpTrigger` again after updating the script.
 
 ## How calculations work
 
@@ -94,7 +94,8 @@ Every sheet except `Summary` is treated as a recipe. Keep notes and other data i
 - Recipe data is expected in columns A–D, starting at row 2.
 - The current design has a five-color palette (`RECIPE_COLORS` in the script). A recipe keeps its color in the summary; a recipe that is new to the summary gets the first unused color. A full rebuild assigns colors by position, in sheet order, to recipes that have calculated times. The keys (`Recipe1`–`Recipe5`) are labels only and do not need to match sheet names. If more than five recipes have calculated times, colors repeat.
 - A cell edit recalculates only the edited recipe sheet and replaces that recipe's rows in the `Summary`; other recipe sheets are not read. Edits on the `Summary` sheet or to the right of column D are ignored.
-- Adding, deleting, or renaming a sheet and inserting or deleting rows do not trigger an update. Afterwards, run `handleEdit` from the Apps Script editor to rebuild every recipe and the whole `Summary`.
+- Inserting or deleting rows refreshes the sheet you are on. Adding, deleting, renaming, or moving a sheet rebuilds every recipe and the whole `Summary`.
+- To force a full rebuild, run `handleEdit` from the Apps Script editor.
 - `DEBUG` is `0` by default. Set it to `1` to write detailed progress to the Apps Script log.
 - The `Summary` sheet is rewritten on every update, so do not keep your own data there.
 - Times are handled as time-of-day values; a schedule that runs past midnight sorts after earlier times in the summary.
@@ -103,7 +104,7 @@ Every sheet except `Summary` is treated as a recipe. Keep notes and other data i
 
 ## Troubleshooting
 
-- **Nothing updates:** check that the `handleEdit` trigger exists in Apps Script under **Triggers**, and review **Executions** for errors.
+- **Nothing updates:** check that the `handleEdit` and `handleChange` triggers exist in Apps Script under **Triggers**, and review **Executions** for errors.
 - **Authorization is requested:** run `setUpTrigger` from the Apps Script editor and complete Google's authorization flow.
 - **No calculated times appear:** ensure at least one row in column C contains a valid time override.
 - **The summary cannot be found:** create a sheet named exactly `Summary`.

@@ -23,6 +23,10 @@ function setUpTrigger() {
     .forSpreadsheet(SpreadsheetApp.getActiveSpreadsheet())
     .onEdit()
     .create();
+  ScriptApp.newTrigger('handleChange')
+    .forSpreadsheet(SpreadsheetApp.getActiveSpreadsheet())
+    .onChange()
+    .create();
 }
 
 function clearSummarySheet(summarySheet) {
@@ -140,6 +144,27 @@ function handleEdit(e) {
     debugLog(`Edit detected in sheet: ${editedSheet.getName()}, range: ${e.range.getA1Notation()}`);
 
     refreshRecipe(editedSheet);
+  } catch (error) {
+    Logger.log("Error: " + error.message);
+  }
+}
+
+// Tab and row operations do not fire onEdit, so an onChange trigger covers them.
+// Adding, deleting, renaming or moving a tab rebuilds everything; inserting or
+// deleting rows refreshes the sheet the user is on. Plain edits are left to handleEdit.
+function handleChange(e) {
+  try {
+    const changeType = e ? e.changeType : "OTHER";
+    debugLog(`Change detected: ${changeType}`);
+
+    if (changeType === "INSERT_ROW" || changeType === "REMOVE_ROW") {
+      const sheet = e.source.getActiveSheet();
+      if (sheet.getName() !== "Summary") {
+        refreshRecipe(sheet);
+      }
+    } else if (changeType === "INSERT_GRID" || changeType === "REMOVE_GRID" || changeType === "OTHER") {
+      rebuildAll();
+    }
   } catch (error) {
     Logger.log("Error: " + error.message);
   }

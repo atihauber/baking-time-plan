@@ -233,3 +233,50 @@ describe('incremental summary', () => {
     expect(summary.rows.map(r => `${r[0]} ${r[1]}`)).toEqual(['Kenyér Mix']);
   });
 });
+
+describe('tab and row changes', () => {
+  const { load } = require('./load');
+  const { fakeSheet, fakeSummary, fakeSpreadsheetApp, fakeChange, fakeScriptApp } = require('./fakes');
+  const header = ['Phase', 'Delay (min)', 'Time override', 'Calculated time'];
+  const recipe = name => fakeSheet(name, [header, ['Mix', 0, t(8, 0), ''], ['Bake', 30, '', '']]);
+  // The Summary still lists a tab that has since been renamed to Kenyér
+  const staleSummary = () => fakeSummary([['Old name', 'Mix', t(8, 0), 'Old name']], ['#ffc8c8']);
+
+  test('setUpTrigger installs the edit and change triggers', () => {
+    const ScriptApp = fakeScriptApp();
+    load({ ScriptApp, SpreadsheetApp: fakeSpreadsheetApp([]) }).setUpTrigger();
+    expect(ScriptApp.created).toEqual([['handleEdit', 'edit'], ['handleChange', 'change']]);
+  });
+
+  test.each(['OTHER', 'INSERT_GRID', 'REMOVE_GRID'])('%s rebuilds the Summary from every tab', changeType => {
+    const summary = staleSummary();
+    const kenyer = recipe('Kenyér');
+    load({ SpreadsheetApp: fakeSpreadsheetApp([kenyer, summary]) }).handleChange(fakeChange(changeType, kenyer));
+    expect(summary.rows.map(r => `${r[0]} ${r[1]}`)).toEqual(['Kenyér Mix', 'Kenyér Bake']);
+  });
+
+  test.each(['INSERT_ROW', 'REMOVE_ROW'])('%s refreshes only the active tab', changeType => {
+    const summary = fakeSummary();
+    const kenyer = recipe('Kenyér');
+    const pizza = recipe('Pizza');
+    load({ SpreadsheetApp: fakeSpreadsheetApp([kenyer, pizza, summary]) }).handleChange(fakeChange(changeType, kenyer));
+    expect(kenyer.writes).toHaveLength(1);
+    expect(pizza.reads).toBe(0);
+    expect(summary.rows.map(r => r[0])).toEqual(['Kenyér', 'Kenyér']);
+  });
+
+  test('row changes on the Summary are ignored', () => {
+    const summary = staleSummary();
+    load({ SpreadsheetApp: fakeSpreadsheetApp([recipe('Kenyér'), summary]) }).handleChange(fakeChange('REMOVE_ROW', summary));
+    expect(summary.rows[0][0]).toBe('Old name');
+  });
+
+  test.each(['EDIT', 'FORMAT', 'INSERT_COLUMN'])('%s is ignored', changeType => {
+    const summary = staleSummary();
+    const kenyer = recipe('Kenyér');
+    load({ SpreadsheetApp: fakeSpreadsheetApp([kenyer, summary]) }).handleChange(fakeChange(changeType, kenyer));
+    expect(kenyer.writes).toHaveLength(0);
+    expect(summary.rows[0][0]).toBe('Old name');
+  });
+});
+

@@ -84,4 +84,23 @@ function fakeEdit(sheet, column) {
   return { range: { getSheet: () => sheet, getColumn: () => column, getA1Notation: () => 'X' } };
 }
 
-module.exports = { fakeSheet, fakeSummary, fakeSpreadsheetApp, fakeEdit };
+// A minimal onChange event; the active sheet is where the user made the change.
+function fakeChange(changeType, activeSheet) {
+  return { changeType, source: { getActiveSheet: () => activeSheet } };
+}
+
+// Records the triggers setUpTrigger creates.
+function fakeScriptApp() {
+  const created = [];
+  const builder = name => ({
+    forSpreadsheet() {
+      return {
+        onEdit: () => ({ create: () => created.push([name, 'edit']) }),
+        onChange: () => ({ create: () => created.push([name, 'change']) }),
+      };
+    },
+  });
+  return { created, getProjectTriggers: () => [], deleteTrigger() {}, newTrigger: builder };
+}
+
+module.exports = { fakeSheet, fakeSummary, fakeSpreadsheetApp, fakeEdit, fakeChange, fakeScriptApp };

@@ -12,6 +12,8 @@ const exported = [
   'findTaskIndex',
   'insertDataToSummary',
   'handleEdit',
+  'handleChange',
+  'setUpTrigger',
   'updateCalculatedTimes',
   'updateSummary',
   'updateSummaryForRecipe',
