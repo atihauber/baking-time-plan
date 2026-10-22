@@ -35,7 +35,11 @@ function getRecipeColors() {
 }
 
 function hasCalculatedTimes(sheet) {
-  const range = sheet.getRange("D2:D" + sheet.getLastRow());
+  const lastRow = sheet.getLastRow();
+  if (lastRow < FIRST_DATA_ROW) {
+    return false;
+  }
+  const range = sheet.getRange("D2:D" + lastRow);
   const values = range.getValues();
   return values.some(row => row[0] !== "");
 }
@@ -140,7 +144,11 @@ function updateSummary() {
   sheets.forEach(sheet => {
     if (sheet.getName() !== "Summary") {
       const recipeName = sheet.getName();
-      const range = sheet.getRange("A2:D" + sheet.getLastRow());
+      const lastRow = sheet.getLastRow();
+      if (lastRow < FIRST_DATA_ROW) {
+        return;
+      }
+      const range = sheet.getRange("A2:D" + lastRow);
       const tasks = range.getValues();
       const color = colorList[colorIndex % colorList.length];
       recipeColors[recipeName] = color;
@@ -181,13 +189,14 @@ function updateCalculatedTimes() {
   sheets.forEach(sheet => {
     if (sheet.getName() !== "Summary") {
       const lastRow = sheet.getLastRow();
-      const range = sheet.getRange("A2:D" + lastRow);
-      const values = range.getValues();
 
-      if (values.length === 0) {
+      if (lastRow < FIRST_DATA_ROW) {
         Logger.log(`Skipping empty sheet: ${sheet.getName()}`);
         return;
       }
+
+      const range = sheet.getRange("A2:D" + lastRow);
+      const values = range.getValues();
 
       Logger.log(`Processing sheet: ${sheet.getName()}, number of rows: ${values.length}`);
       values.forEach(row => row[CALCULATED_TIME_COLUMN] = "");

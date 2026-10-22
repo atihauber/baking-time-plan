@@ -58,3 +58,39 @@ describe('summary de-duplication', () => {
     expect(findTaskIndex([], ['x', 'y', t(1, 0), 'x'])).toBe(-1);
   });
 });
+
+describe('sheets without data rows', () => {
+  const { load } = require('./load');
+  const { fakeSheet, fakeSummary, fakeSpreadsheetApp } = require('./fakes');
+  const header = ['Phase', 'Delay (min)', 'Time override', 'Calculated time'];
+
+  const setup = (...sheets) => load({ SpreadsheetApp: fakeSpreadsheetApp([...sheets, fakeSummary()]) });
+
+  test.each([
+    ['empty', []],
+    ['header-only', [header]],
+  ])('updateCalculatedTimes skips a %s sheet without touching it', (_, rows) => {
+    const blank = fakeSheet('Blank', rows);
+    setup(blank).updateCalculatedTimes();
+    expect(blank.rows).toEqual(rows);
+  });
+
+  test('a blank sheet does not stop other recipes from recalculating', () => {
+    const blank = fakeSheet('Blank', []);
+    const recipe = fakeSheet('Kenyér', [header, ['Mix', 0, t(8, 0), ''], ['Bake', 30, '', '']]);
+    setup(blank, recipe).updateCalculatedTimes();
+    expect(recipe.rows[2][3]).toEqual(t(8, 30));
+  });
+
+  test.each([
+    ['empty', []],
+    ['header-only', [header]],
+  ])('hasCalculatedTimes is false for a %s sheet', (_, rows) => {
+    expect(setup().hasCalculatedTimes(fakeSheet('Blank', rows))).toBe(false);
+  });
+
+  test('updateSummary tolerates empty and header-only sheets', () => {
+    const sheets = [fakeSheet('Empty', []), fakeSheet('Headers', [header])];
+    expect(() => setup(...sheets).updateSummary()).not.toThrow();
+  });
+});
