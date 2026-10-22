@@ -89,7 +89,8 @@ Run `setUpTrigger` only when you need to create or recreate the edit trigger. Th
 - The summary sheet name is `Summary`.
 - Recipe data is expected in columns A–D, starting at row 2.
 - The current design has a five-color palette (`RECIPE_COLORS` in the script). Colors are assigned by position, in sheet order, to recipes that have calculated times; the keys (`Recipe1`–`Recipe5`) are labels only and do not need to match sheet names. If more than five recipes have calculated times, colors repeat.
-- `DEBUG = 1` makes every edit, on any sheet, recalculate all recipes and rebuild the summary. Setting it to `0` enables logging and skips edits made on the `Summary` sheet.
+- Every edit, on any sheet, recalculates all recipes and rebuilds the `Summary`.
+- `DEBUG` is `0` by default. Set it to `1` to write detailed progress to the Apps Script log.
 - The whole `Summary` sheet is cleared and rebuilt on each run, so anything typed there is lost.
 - Times are handled as time-of-day values; a schedule that runs past midnight sorts after earlier times in the summary.
 - Recipe sheet names are used as recipe names in the summary.

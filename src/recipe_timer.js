@@ -1,4 +1,4 @@
-const DEBUG = 1;
+const DEBUG = 0;
 
 const TASK_COLUMN = 0;
 const TIME_DELTA_COLUMN = 1;
@@ -42,6 +42,12 @@ function hasCalculatedTimes(sheet) {
   const range = sheet.getRange("D2:D" + lastRow);
   const values = range.getValues();
   return values.some(row => row[0] !== "");
+}
+
+function debugLog(message) {
+  if (DEBUG) {
+    Logger.log(message);
+  }
 }
 
 function findTaskIndex(data, task) {
@@ -96,32 +102,9 @@ function recalculateTimes(values, initialIndex, initialTime) {
 }
 
 function onEdit(e) {
-  try {  
-    if (DEBUG == 0) {
-      if (!e) {
-        Logger.log("Edit event object is undefined.");
-        return;
-      }
-
-      const sheet = e.source.getActiveSheet();
-      const range = e.range;
-
-      if (!sheet || !range) {
-        Logger.log("Active sheet or range is undefined.");
-        return;
-      }
-
-      const editedColumn = range.getColumn();
-      const editedRow = range.getRow();
-
-      Logger.log(`Edit detected in sheet: ${sheet.getName()}, range: ${range.getA1Notation()}, value: ${range.getValue()}`);
-
-      if (sheet.getName() === "Summary") {
-        Logger.log("Edited sheet is the Summary sheet.");
-        return;
-      }
-
-      Logger.log(`Editing column C at row ${editedRow} in sheet ${sheet.getName()}, triggering updates.`);
+  try {
+    if (e && e.range) {
+      debugLog(`Edit detected in sheet: ${e.range.getSheet().getName()}, range: ${e.range.getA1Notation()}`);
     }
     updateCalculatedTimes();
     updateSummary();
@@ -155,7 +138,7 @@ function updateSummary() {
 
       tasks.forEach(task => {
         if (task[CALCULATED_TIME_COLUMN] !== "") {
-          Logger.log(`Adding task to summary: ${task}`);
+          debugLog(`Adding task to summary: ${task}`);
           insertDataToSummary(summaryTasks, recipeName, task);
         }
       });
@@ -191,26 +174,26 @@ function updateCalculatedTimes() {
       const lastRow = sheet.getLastRow();
 
       if (lastRow < FIRST_DATA_ROW) {
-        Logger.log(`Skipping empty sheet: ${sheet.getName()}`);
+        debugLog(`Skipping empty sheet: ${sheet.getName()}`);
         return;
       }
 
       const range = sheet.getRange("A2:D" + lastRow);
       const values = range.getValues();
 
-      Logger.log(`Processing sheet: ${sheet.getName()}, number of rows: ${values.length}`);
+      debugLog(`Processing sheet: ${sheet.getName()}, number of rows: ${values.length}`);
       values.forEach(row => row[CALCULATED_TIME_COLUMN] = "");
 
       const { initialTime, index } = findFirstOverrideTime(values);
 
       if (initialTime !== null) {
-        Logger.log(`Recalculating times from index: ${index}, initial time: ${initialTime}`);
+        debugLog(`Recalculating times from index: ${index}, initial time: ${initialTime}`);
         recalculateTimes(values, index, initialTime);
       }
 
       // Ensure the range and values length match
       if (values.length > 0) {
-        Logger.log(`Updating sheet range with values: ${values.length} rows`);
+        debugLog(`Updating sheet range with values: ${values.length} rows`);
         const targetRange = sheet.getRange("A2:D" + (values.length + 1));
         targetRange.setValues(values);
       }
