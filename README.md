@@ -1,138 +1,63 @@
 # Baking Time Plan
 
-A Google Sheets and Google Apps Script tool for scheduling recipe phases by time.
+A Google Sheets script that plans your bakes. Enter a start time for a recipe, and it fills in when every following step is due. A `Summary` sheet merges all recipes into one color-coded timeline.
 
-Enter a time override for a phase, and the script calculates subsequent phase times using each row's delay in minutes. A `Summary` sheet collects calculated phases from the recipe sheets, sorts them chronologically, and colors rows by recipe.
+<table>
+  <tr>
+    <td><img src="docs/images/recipe-sheet.png" alt="A recipe sheet with an override time and calculated times"></td>
+    <td><img src="docs/images/recipe-sheet-2.png" alt="A second recipe sheet with its own start time"></td>
+    <td><img src="docs/images/summary.png" alt="The Summary sheet showing both recipes interleaved by time"></td>
+  </tr>
+</table>
 
-The project is designed for baking workflows, but the same approach can be adapted to other sequences of timed tasks.
+## Setup
 
-## Features
+1. In a Google spreadsheet, add a sheet named `Summary` and one sheet per recipe (layout below).
+2. Open **Extensions → Apps Script** and replace the editor's content with [`src/recipe_timer.js`](src/recipe_timer.js).
+3. Select `setUpTrigger`, click **Run**, and grant the permissions.
+4. Type a time in column C of a recipe. The times and the summary update on their own.
 
-- Define an ordered list of phases for each recipe.
-- Enter a manual time override at any phase.
-- Calculate following phase times from the previous calculated time and the configured delay.
-- Recalculate recipe times when the spreadsheet is edited.
-- Collect calculated phases into a chronological summary.
-- Color-code recipes in the summary.
-- Use Hungarian column labels.
+## Recipe sheet layout
 
-## Example
+Row 1 holds headers (any text); phases start in row 2, in order.
 
-A recipe sheet with an override time (`8:00`) and the times calculated from it:
+| Column | Contents |
+| --- | --- |
+| A | Phase name |
+| B | Delay in minutes after the previous phase (e.g. `45`, or a duration like `3:30`) |
+| C | Time you set by hand (optional) |
+| D | Calculated time, written by the script |
 
-![A recipe sheet with an override time and calculated times](docs/images/recipe-sheet.png)
+See [`examples/spreadsheet-layout.md`](examples/spreadsheet-layout.md) for a worked example.
 
-Each recipe has its own sheet; here is a second one (`Pizza`) with a different start time:
+## How times are calculated
 
-![A second recipe sheet with its own override time](docs/images/recipe-sheet-2.png)
+- The first row with a time in column C is the start. Rows above it stay empty.
+- Each following row gets the previous time plus its delay, unless it has its own time in column C, which then takes over.
+- Rows without a phase name are skipped.
+- A value the script cannot read shows `⚠ invalid time` or `⚠ invalid delay` and is skipped.
 
-The `Summary` sheet merges all recipes in chronological order, with one color per recipe:
+## Good to know
 
-![The Summary sheet showing two recipes interleaved by time](docs/images/summary.png)
-
-## Requirements
-
-- A Google account with access to Google Sheets and Google Apps Script.
-- A spreadsheet containing one sheet per recipe and a sheet named `Summary`.
-- The Apps Script source from [`src/recipe_timer.js`](src/recipe_timer.js).
-
-## Spreadsheet layout
-
-Each recipe sheet uses these columns, starting in row 1:
-
-| Column | Hungarian header | Purpose |
-| --- | --- | --- |
-| A | `Fázis` | Phase or task name |
-| B | `Késleltetés (min)` | Minutes after the previous calculated phase |
-| C | `Időpont megadása / felülírás` | Optional manually entered time |
-| D | `Számolt időpont` | Calculated time written by the script |
-
-The script expects recipe data to start in row 2. Keep the phases in the order in which they should be processed.
-
-Create a sheet named exactly `Summary`. Its output columns are:
-
-| Column | Header | Purpose |
-| --- | --- | --- |
-| A | `Recept` | Recipe sheet name |
-| B | `Fázis` | Phase name |
-| C | `Számolt Időpont` | Calculated time |
-| D | `Recept` | Recipe name repeated for color identification |
-
-The script writes the summary; avoid manually editing its generated rows.
-
-See [`examples/spreadsheet-layout.md`](examples/spreadsheet-layout.md) for a compact setup example.
-
-## Installation
-
-1. Create a Google spreadsheet.
-2. Create a `Summary` sheet.
-3. Create a sheet for each recipe, using the column layout above.
-4. Open **Extensions → Apps Script**.
-5. Copy the contents of [`src/recipe_timer.js`](src/recipe_timer.js) into the editor, replacing the default `Code.gs` content.
-6. Save the project.
-7. Select `setUpTrigger` in the Apps Script editor and run it once.
-8. Review and grant the requested permissions.
-9. Enter a time in column C of a recipe sheet. The calculated times and summary should update automatically.
-
-Run `setUpTrigger` only when you need to create or recreate the triggers. The function removes existing project triggers before creating two new ones: `handleEdit` (on edit) and `handleChange` (on change). If you installed an earlier version, run `setUpTrigger` again after updating the script.
-
-## How calculations work
-
-- The first row with a time in column C becomes the starting point for calculation.
-- Each following row uses its override time if present; otherwise, its calculated time is the previous calculated time plus the row's delay in minutes.
-- Rows before the first override do not receive calculated times.
-- Rows with an empty phase (column A) are skipped and get no time; the chain continues past them.
-- A delay can be a number of minutes, a number stored as text, or a duration such as `3:30` (useful for long phases). An empty delay counts as 0. Format duration cells as **Format → Number → Duration**; in a cell formatted as a plain number, `0:45` shows up as a fraction of a day and is read as a fraction of a minute.
-- If column C holds something that is not a time (for example `9.30` typed as text), the row shows `⚠ invalid time`. If the delay cannot be read as minutes, the row shows `⚠ invalid delay`. Marked rows are skipped and the chain continues from the last valid time.
-- The summary includes rows with calculated times and sorts them by time.
-
-Every sheet except `Summary` is treated as a recipe. Keep notes and other data in a separate spreadsheet or to the right of column D, because column D of every sheet is overwritten.
-
-## Configuration and limitations
-
-- The summary sheet name is `Summary`.
-- Recipe data is expected in columns A–D, starting at row 2.
-- The current design has a five-color palette (`RECIPE_COLORS` in the script). A recipe keeps its color in the summary; a recipe that is new to the summary gets the first unused color. A full rebuild assigns colors by position, in sheet order, to recipes that have calculated times. The keys (`Recipe1`–`Recipe5`) are labels only and do not need to match sheet names. If more than five recipes have calculated times, colors repeat.
-- A cell edit recalculates only the edited recipe sheet and replaces that recipe's rows in the `Summary`; other recipe sheets are not read. Edits on the `Summary` sheet or to the right of column D are ignored.
-- Inserting or deleting rows refreshes the sheet you are on. Adding, deleting, renaming, or moving a sheet rebuilds every recipe and the whole `Summary`.
-- To force a full rebuild, run `handleEdit` from the Apps Script editor.
-- Calculated times in column D and in the `Summary` are formatted as `H:mm` (`TIME_FORMAT` in the script), so they always show the time of day.
-- `DEBUG` is `0` by default. Set it to `1` to write detailed progress to the Apps Script log.
-- The `Summary` sheet is rewritten on every update, so do not keep your own data there.
-- Times are handled as time-of-day values; a schedule that runs past midnight sorts after earlier times in the summary.
-- Recipe sheet names are used as recipe names in the summary.
-- The script is a Google Apps Script project intended to be copied into a spreadsheet; this repository is not a standalone web application.
+- **Every sheet except `Summary` counts as a recipe**, and its column D is overwritten. Keep notes in another spreadsheet or to the right of column D.
+- The `Summary` is rewritten automatically; don't type in it.
+- Updates follow edits, inserted or deleted rows, and added, renamed or deleted sheets. To force a full refresh, run `handleEdit` in the Apps Script editor.
+- Overnight schedules: a time you type for after midnight counts as the same day, so it sorts before the evening ([#7](https://github.com/atihauber/baking-time-plan/issues/7)).
 
 ## Troubleshooting
 
-- **Nothing updates:** check that the `handleEdit` and `handleChange` triggers exist in Apps Script under **Triggers**, and review **Executions** for errors.
-- **Authorization is requested:** run `setUpTrigger` from the Apps Script editor and complete Google's authorization flow.
-- **No calculated times appear:** ensure at least one row in column C contains a valid time override.
-- **The summary cannot be found:** create a sheet named exactly `Summary`.
-
-When reporting a bug, include the steps to reproduce it and the relevant error from Apps Script **Executions**. Do not share private spreadsheet data or spreadsheet IDs.
+- **Nothing updates:** in Apps Script, check that **Triggers** lists `handleEdit` and `handleChange`, and look for errors under **Executions**. Run `setUpTrigger` again after updating the script.
+- **No times appear:** at least one row needs a time in column C.
 
 ## Development
 
-The script lives in `src/` and is synced with the spreadsheet's Apps Script project using [clasp](https://github.com/google/clasp). Install [Node.js](https://nodejs.org/) first.
+The code in `src/` is synced with Apps Script through [clasp](https://github.com/google/clasp) and tested with Jest:
 
 ```
 npm install
-npx clasp login
-npx clasp clone <scriptId> --rootDir src   # once; creates the gitignored .clasp.json
-npm run pull    # Apps Script -> src/
-npm run push    # src/ -> Apps Script (overwrites the project's files)
-npm test        # unit tests for the calculation and summary logic
+npx clasp login && npx clasp clone <scriptId> --rootDir src
+npm test          # run the tests
+npm run push      # upload src/ to Apps Script
 ```
 
-Find the script ID under **Project Settings** in the Apps Script editor. Keep `.clasp.json` and `.clasprc.json` out of version control; both are in `.gitignore`.
-
-The tests in `test/` load `src/recipe_timer.js` in a sandbox and cover the calculation logic (`calculateTimes`, `parseDelayMinutes`, summary de-duplication) and, through small fakes of the Sheets API, the edit handling. Code that calls `SpreadsheetApp` must still be tested in a copy of a spreadsheet.
-
-## Contributing
-
-Bug reports and focused improvements are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## License
-
-Released under the MIT License. See [LICENSE](LICENSE).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details. Released under the [MIT License](LICENSE).
