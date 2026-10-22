@@ -1,0 +1,4 @@
+node_modules/
+# Holds the script ID; do not commit
+.clasp.json
+.clasprc.json

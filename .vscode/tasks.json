@@ -1,0 +1,8 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    { "label": "clasp push", "type": "shell", "command": "npx clasp push", "problemMatcher": [] },
+    { "label": "clasp pull", "type": "shell", "command": "npx clasp pull", "problemMatcher": [] },
+    { "label": "test", "type": "shell", "command": "npm test", "group": "test", "problemMatcher": [] }
+  ]
+}
