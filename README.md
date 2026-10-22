@@ -74,7 +74,7 @@ See [`examples/spreadsheet-layout.md`](examples/spreadsheet-layout.md) for a com
 8. Review and grant the requested permissions.
 9. Enter a time in column C of a recipe sheet. The calculated times and summary should update automatically.
 
-Run `setUpTrigger` only when you need to create or recreate the edit trigger. The function removes existing project triggers before creating the `onEdit` trigger.
+Run `setUpTrigger` only when you need to create or recreate the edit trigger. The function removes existing project triggers before creating the `handleEdit` trigger. If you installed an earlier version that used an `onEdit` trigger, run `setUpTrigger` again after updating the script.
 
 ## How calculations work
 
@@ -89,7 +89,7 @@ Run `setUpTrigger` only when you need to create or recreate the edit trigger. Th
 - The summary sheet name is `Summary`.
 - Recipe data is expected in columns A–D, starting at row 2.
 - The current design has a five-color palette (`RECIPE_COLORS` in the script). Colors are assigned by position, in sheet order, to recipes that have calculated times; the keys (`Recipe1`–`Recipe5`) are labels only and do not need to match sheet names. If more than five recipes have calculated times, colors repeat.
-- Every edit, on any sheet, recalculates all recipes and rebuilds the `Summary`.
+- An edit recalculates only the edited recipe sheet and rebuilds the `Summary`. Edits on the `Summary` sheet or to the right of column D are ignored.
 - `DEBUG` is `0` by default. Set it to `1` to write detailed progress to the Apps Script log.
 - The whole `Summary` sheet is cleared and rebuilt on each run, so anything typed there is lost.
 - Times are handled as time-of-day values; a schedule that runs past midnight sorts after earlier times in the summary.

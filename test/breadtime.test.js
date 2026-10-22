@@ -67,9 +67,9 @@ describe('sheets without data rows', () => {
   const setup = (...sheets) => load({ SpreadsheetApp: fakeSpreadsheetApp([...sheets, fakeSummary()]) });
 
   test.each([
-    ['empty', []],
-    ['header-only', [header]],
-  ])('updateCalculatedTimes skips a %s sheet without touching it', (_, rows) => {
+    ['an empty', []],
+    ['a header-only', [header]],
+  ])('updateCalculatedTimes skips %s sheet without touching it', (_, rows) => {
     const blank = fakeSheet('Blank', rows);
     setup(blank).updateCalculatedTimes();
     expect(blank.rows).toEqual(rows);
@@ -82,15 +82,58 @@ describe('sheets without data rows', () => {
     expect(recipe.rows[2][3]).toEqual(t(8, 30));
   });
 
-  test.each([
-    ['empty', []],
-    ['header-only', [header]],
-  ])('hasCalculatedTimes is false for a %s sheet', (_, rows) => {
-    expect(setup().hasCalculatedTimes(fakeSheet('Blank', rows))).toBe(false);
-  });
-
   test('updateSummary tolerates empty and header-only sheets', () => {
     const sheets = [fakeSheet('Empty', []), fakeSheet('Headers', [header])];
     expect(() => setup(...sheets).updateSummary()).not.toThrow();
+  });
+
+  test('updateSummary colors the rows with a single batched call', () => {
+    const summary = fakeSummary();
+    const recipe = fakeSheet('Kenyér', [header, ['Mix', 0, t(8, 0), t(8, 0)], ['Bake', 30, '', t(8, 30)]]);
+    load({ SpreadsheetApp: fakeSpreadsheetApp([recipe, summary]) }).updateSummary();
+    expect(summary.calls).toEqual({ setBackground: 0, setBackgrounds: 1 });
+  });
+});
+
+describe('edit handling', () => {
+  const { load } = require('./load');
+  const { fakeSheet, fakeSummary, fakeSpreadsheetApp, fakeEdit } = require('./fakes');
+  const header = ['Phase', 'Delay (min)', 'Time override', 'Calculated time'];
+  const recipeRows = () => [header, ['Mix', 0, t(8, 0), ''], ['Bake', 30, '', '']];
+  const setup = (...sheets) => load({ SpreadsheetApp: fakeSpreadsheetApp([...sheets, fakeSummary()]) });
+
+  test('updateCalculatedTimes writes only the calculated column', () => {
+    const recipe = fakeSheet('Kenyér', recipeRows());
+    setup(recipe).updateCalculatedTimes();
+    expect(recipe.writes).toEqual([{ row: 2, col: 4, rows: 2, cols: 1 }]);
+    expect(recipe.rows[2]).toEqual(['Bake', 30, '', t(8, 30)]);
+  });
+
+  test('an edit recalculates only the edited sheet', () => {
+    const edited = fakeSheet('Kenyér', recipeRows());
+    const other = fakeSheet('Pizza', recipeRows());
+    setup(edited, other).handleEdit(fakeEdit(edited, 3));
+    expect(edited.writes).toHaveLength(1);
+    expect(other.writes).toHaveLength(0);
+  });
+
+  test('edits right of the calculated column are ignored', () => {
+    const recipe = fakeSheet('Kenyér', recipeRows());
+    setup(recipe).handleEdit(fakeEdit(recipe, 6));
+    expect(recipe.writes).toHaveLength(0);
+  });
+
+  test('edits on the Summary sheet are ignored', () => {
+    const recipe = fakeSheet('Kenyér', recipeRows());
+    const summary = fakeSummary();
+    setup(recipe).handleEdit(fakeEdit(summary, 1));
+    expect(recipe.writes).toHaveLength(0);
+  });
+
+  test('without an event every recipe is recalculated', () => {
+    const a = fakeSheet('Kenyér', recipeRows());
+    const b = fakeSheet('Pizza', recipeRows());
+    setup(a, b).handleEdit();
+    expect([a.writes.length, b.writes.length]).toEqual([1, 1]);
   });
 });

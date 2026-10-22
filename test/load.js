@@ -11,7 +11,7 @@ const exported = [
   'recalculateTimes',
   'findTaskIndex',
   'insertDataToSummary',
-  'hasCalculatedTimes',
+  'handleEdit',
   'updateCalculatedTimes',
   'updateSummary',
 ];

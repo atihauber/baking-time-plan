@@ -16,7 +16,7 @@ const RECIPE_COLORS = {
 
 function setUpTrigger() {
   ScriptApp.getProjectTriggers().forEach(trigger => ScriptApp.deleteTrigger(trigger));
-  ScriptApp.newTrigger('onEdit')
+  ScriptApp.newTrigger('handleEdit')
     .forSpreadsheet(SpreadsheetApp.getActiveSpreadsheet())
     .onEdit()
     .create();
@@ -32,16 +32,6 @@ function clearSummarySheet(summarySheet) {
 
 function getRecipeColors() {
   return Object.values(RECIPE_COLORS);
-}
-
-function hasCalculatedTimes(sheet) {
-  const lastRow = sheet.getLastRow();
-  if (lastRow < FIRST_DATA_ROW) {
-    return false;
-  }
-  const range = sheet.getRange("D2:D" + lastRow);
-  const values = range.getValues();
-  return values.some(row => row[0] !== "");
 }
 
 function debugLog(message) {
@@ -101,12 +91,21 @@ function recalculateTimes(values, initialIndex, initialTime) {
   return values;
 }
 
-function onEdit(e) {
+// Named handleEdit, not onEdit: Sheets runs a function called onEdit as a simple
+// trigger on its own, which would fire alongside the installable trigger.
+function handleEdit(e) {
   try {
-    if (e && e.range) {
-      debugLog(`Edit detected in sheet: ${e.range.getSheet().getName()}, range: ${e.range.getA1Notation()}`);
+    const editedSheet = e && e.range ? e.range.getSheet() : null;
+
+    if (editedSheet) {
+      // The Summary and anything right of the calculated column cannot change a schedule.
+      if (editedSheet.getName() === "Summary" || e.range.getColumn() > CALCULATED_TIME_COLUMN + 1) {
+        return;
+      }
+      debugLog(`Edit detected in sheet: ${editedSheet.getName()}, range: ${e.range.getA1Notation()}`);
     }
-    updateCalculatedTimes();
+
+    updateCalculatedTimes(editedSheet ? [editedSheet] : undefined);
     updateSummary();
   } catch (error) {
     Logger.log("Error: " + error.message);
@@ -135,15 +134,17 @@ function updateSummary() {
       const tasks = range.getValues();
       const color = colorList[colorIndex % colorList.length];
       recipeColors[recipeName] = color;
+      let hasCalculatedTimes = false;
 
       tasks.forEach(task => {
         if (task[CALCULATED_TIME_COLUMN] !== "") {
           debugLog(`Adding task to summary: ${task}`);
           insertDataToSummary(summaryTasks, recipeName, task);
+          hasCalculatedTimes = true;
         }
       });
 
-      if (hasCalculatedTimes(sheet)) {
+      if (hasCalculatedTimes) {
         colorIndex += 1;
       }
     }
@@ -154,21 +155,15 @@ function updateSummary() {
   // Insert the sorted tasks into the summary sheet and apply coloring
   if (summaryTasks.length > 0) {
     summarySheet.getRange(FIRST_DATA_ROW, 1, summaryTasks.length, 4).setValues(summaryTasks);
-    summaryTasks.forEach((task, index) => {
-      const rowIndex = FIRST_DATA_ROW + index;
-      const color = recipeColors[task[0]];
-      summarySheet.getRange(rowIndex, 1, 1, 4).setBackground(color);
-    });
+    const backgrounds = summaryTasks.map(task => Array(4).fill(recipeColors[task[0]]));
+    summarySheet.getRange(FIRST_DATA_ROW, 1, summaryTasks.length, 4).setBackgrounds(backgrounds);
 
     // Center-align the calculated time column
     summarySheet.getRange(FIRST_DATA_ROW, 3, summaryTasks.length, 1).setHorizontalAlignment('center');
   }
 }
 
-function updateCalculatedTimes() {
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  const sheets = spreadsheet.getSheets();
-
+function updateCalculatedTimes(sheets = SpreadsheetApp.getActiveSpreadsheet().getSheets()) {
   sheets.forEach(sheet => {
     if (sheet.getName() !== "Summary") {
       const lastRow = sheet.getLastRow();
@@ -191,12 +186,9 @@ function updateCalculatedTimes() {
         recalculateTimes(values, index, initialTime);
       }
 
-      // Ensure the range and values length match
-      if (values.length > 0) {
-        debugLog(`Updating sheet range with values: ${values.length} rows`);
-        const targetRange = sheet.getRange("A2:D" + (values.length + 1));
-        targetRange.setValues(values);
-      }
+      // Write only the calculated column so formulas in A-C are left alone
+      sheet.getRange(FIRST_DATA_ROW, CALCULATED_TIME_COLUMN + 1, values.length, 1)
+        .setValues(values.map(row => [row[CALCULATED_TIME_COLUMN]]));
     }
   });
 }
