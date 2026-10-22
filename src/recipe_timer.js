@@ -9,6 +9,8 @@ const SUMMARY_HEADER = [["Recept", "Fázis", "Számolt Időpont", "Recept"]];
 // Written to the calculated column instead of a time when a row cannot be used
 const INVALID_TIME_MARK = "⚠ invalid time";
 const INVALID_DELAY_MARK = "⚠ invalid delay";
+// Times are stored as dates on 1899-12-30; this format shows only the time of day
+const TIME_FORMAT = "H:mm";
 const RECIPE_COLORS = {
   "Recipe1": "#FFC8C8", // Light Red
   "Recipe2": "#C8FFC8", // Light Green
@@ -269,8 +271,10 @@ function writeSummary(summarySheet, summaryTasks, recipeColors) {
     const backgrounds = summaryTasks.map(task => Array(4).fill(recipeColors[task[0]]));
     summarySheet.getRange(FIRST_DATA_ROW, 1, summaryTasks.length, 4).setBackgrounds(backgrounds);
 
-    // Center-align the calculated time column
-    summarySheet.getRange(FIRST_DATA_ROW, 3, summaryTasks.length, 1).setHorizontalAlignment('center');
+    // Center-align the calculated time column and show it as a time of day
+    const timeRange = summarySheet.getRange(FIRST_DATA_ROW, 3, summaryTasks.length, 1);
+    timeRange.setHorizontalAlignment('center');
+    timeRange.setNumberFormat(TIME_FORMAT);
   }
 }
 
@@ -297,8 +301,10 @@ function recalculateSheet(sheet) {
   debugLog(`Processing sheet: ${sheet.getName()}, number of rows: ${values.length}`);
   calculateTimes(values);
 
-  // Write only the calculated column so formulas in A-C are left alone
-  sheet.getRange(FIRST_DATA_ROW, CALCULATED_TIME_COLUMN + 1, values.length, 1)
-    .setValues(values.map(row => [row[CALCULATED_TIME_COLUMN]]));
+  // Write only the calculated column so formulas in A-C are left alone, and
+  // format it as a time so no cell shows the 1899 date part
+  const calculatedRange = sheet.getRange(FIRST_DATA_ROW, CALCULATED_TIME_COLUMN + 1, values.length, 1);
+  calculatedRange.setValues(values.map(row => [row[CALCULATED_TIME_COLUMN]]));
+  calculatedRange.setNumberFormat(TIME_FORMAT);
   return values;
 }

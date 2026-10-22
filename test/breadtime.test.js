@@ -280,3 +280,17 @@ describe('tab and row changes', () => {
   });
 });
 
+describe('time formatting', () => {
+  const { load } = require('./load');
+  const { fakeSheet, fakeSummary, fakeSpreadsheetApp, fakeEdit } = require('./fakes');
+  const header = ['Phase', 'Delay (min)', 'Time override', 'Calculated time'];
+
+  test('the calculated column and the Summary times are formatted as H:mm', () => {
+    const summary = fakeSummary();
+    const kenyer = fakeSheet('Kenyér', [header, ['Mix', 0, '', ''], ['Knead', 30, t(18, 0), ''], ['Fold', 60, '', '']]);
+    load({ SpreadsheetApp: fakeSpreadsheetApp([kenyer, summary]) }).handleEdit(fakeEdit(kenyer, 3));
+    expect(kenyer.formats).toEqual([{ row: 2, col: 4, rows: 3, cols: 1, format: 'H:mm' }]);
+    expect(summary.formats).toEqual([{ row: 2, col: 3, rows: 2, cols: 1, format: 'H:mm' }]);
+  });
+});
+

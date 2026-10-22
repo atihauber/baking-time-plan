@@ -96,6 +96,7 @@ Every sheet except `Summary` is treated as a recipe. Keep notes and other data i
 - A cell edit recalculates only the edited recipe sheet and replaces that recipe's rows in the `Summary`; other recipe sheets are not read. Edits on the `Summary` sheet or to the right of column D are ignored.
 - Inserting or deleting rows refreshes the sheet you are on. Adding, deleting, renaming, or moving a sheet rebuilds every recipe and the whole `Summary`.
 - To force a full rebuild, run `handleEdit` from the Apps Script editor.
+- Calculated times in column D and in the `Summary` are formatted as `H:mm` (`TIME_FORMAT` in the script), so they always show the time of day.
 - `DEBUG` is `0` by default. Set it to `1` to write detailed progress to the Apps Script log.
 - The `Summary` sheet is rewritten on every update, so do not keep your own data there.
 - Times are handled as time-of-day values; a schedule that runs past midnight sorts after earlier times in the summary.

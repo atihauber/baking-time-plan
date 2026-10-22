@@ -6,6 +6,7 @@ function fakeSheet(name, rows = []) {
     rows: rows.map(r => r.slice()),
     writes: [],
     reads: 0,
+    formats: [],
     getName: () => name,
     getLastRow: () => sheet.rows.length,
     getRange(...args) {
@@ -27,6 +28,9 @@ function fakeSheet(name, rows = []) {
           sheet.reads++;
           return sheet.rows.slice(first - 1, first - 1 + count).map(r => r.slice(col - 1, col - 1 + width));
         },
+        setNumberFormat(format) {
+          sheet.formats.push({ row: first, col, rows: count, cols: width, format });
+        },
         setValues(values) {
           sheet.writes.push({ row: first, col, rows: values.length, cols: width });
           values.forEach((v, i) => {
@@ -46,12 +50,13 @@ function fakeSummary(rows = [], colors = []) {
   const calls = { setBackground: 0, setBackgrounds: 0 };
   const summary = {
     calls,
+    formats: [],
     rows: rows.map(r => r.slice()),
     colors: colors.slice(),
     getName: () => 'Summary',
     getLastRow: () => (summary.rows.length ? summary.rows.length + 1 : 0),
     clear() { summary.rows = []; summary.colors = []; },
-    getRange(row, col, count) {
+    getRange(row, col, count, width) {
       const data = typeof row === 'number' && row >= 2;
       return {
         getValues: () => summary.rows.slice(row - 2, row - 2 + count).map(r => r.slice()),
@@ -64,6 +69,7 @@ function fakeSummary(rows = [], colors = []) {
           summary.colors.splice(row - 2, values.length, ...values.map(v => v[0]));
         },
         setBackground() { calls.setBackground++; },
+        setNumberFormat(format) { summary.formats.push({ row, col, rows: count, cols: width, format }); },
         setFontWeight() {}, setBorder() {}, setHorizontalAlignment() {},
       };
     },
